@@ -1,5 +1,7 @@
 /*
  *  The scanner definition for COOL.
+ *  Santiago Rodriguez Vallejo and Jose Ignacio Suarez Montiel
+ *  Universidad Nacional de Colombia, Bogota. 2023-II
  */
 
 import java_cup.runtime.Symbol;
@@ -64,6 +66,12 @@ import java_cup.runtime.Symbol;
     case STRING:
       yybegin(YYINITIAL);
       return new Symbol(TokenConstants.ERROR, "EOF in string constant");
+    case ERROR:
+      yybegin(YYINITIAL);
+      return new Symbol(TokenConstants.ERROR, "EOF in String");
+    case BACKSLASH:
+      yybegin(YYINITIAL);
+      return new Symbol(TokenConstants.ERROR, "EOF in String");
   }
   return new Symbol(TokenConstants.EOF);
 %eofval}
@@ -76,6 +84,7 @@ import java_cup.runtime.Symbol;
 %state COMMENT
 %state LINECOMMENT
 %state BACKSLASH
+%state ERROR
 
 A = [aA]
 B = [bB]
@@ -155,10 +164,10 @@ Z = [zZ]
 <YYINITIAL>"*)" { return new Symbol(TokenConstants.ERROR, "Unmatched *)"); }
 
 <YYINITIAL>\n { curr_lineno++; }
-<YYINITIAL>[ \t\f\v\r] { /* Whitespaces, do nothing */ }
+<YYINITIAL>[ \t\f\v\r\x0B] { /* Whitespaces, do nothing */ }
 
 <STRING>\" { yybegin(YYINITIAL); return new Symbol(TokenConstants.STR_CONST, AbstractTable.stringtable.addString(string_buf.toString())); }
-<STRING>\000 { return new Symbol(TokenConstants.ERROR, "String contains null character"); }
+<STRING>\000 { yybegin(ERROR); return new Symbol(TokenConstants.ERROR, "String contains null character"); }
 <STRING>"\b" { string_buf.append('\b'); }
 <STRING>"\t" { string_buf.append('\t'); }
 <STRING>"\n"|\\\n { string_buf.append('\n'); }
@@ -167,6 +176,13 @@ Z = [zZ]
 <STRING>\\[^\0] { string_buf.append(yytext().charAt(1)); }
 <STRING>\n { curr_lineno++; yybegin(YYINITIAL); return new Symbol(TokenConstants.ERROR, "Unterminated string constant"); }
 <STRING>[^\0] {string_buf.append(yytext()); if(string_buf.length() > MAX_STR_CONST) return new Symbol(TokenConstants.ERROR, "String constant too long"); }
+<STRING>\\ { yybegin(BACKSLASH); }
+
+<BACKSLASH>\0 { yybegin(ERROR); return new Symbol(TokenConstants.ERROR, "String contains null character"); }
+<BACKSLASH>[^\0] { yybegin(STRING); string_buf.append(yytext()); }
+
+<ERROR>\n|\" { yybegin(YYINITIAL); }
+<ERROR>[^\0] { /* Do nothing */ }
 
 <COMMENT>"(*" { ++comment_level; }
 <COMMENT>"*)" { if(--comment_level == 0) yybegin(YYINITIAL); }
